@@ -2,6 +2,12 @@
 
 **The OpenCode terminal line that pays you to code.**
 
+> **OpenCode 2 fork.** This is [Bugg4/adtention-opencode](https://github.com/Bugg4/adtention-opencode),
+> a port of [adtention-ai/opencode](https://github.com/adtention-ai/opencode) to the OpenCode 2
+> plugin API. The original V1 plugin does not load in OpenCode 2; this fork uses the V2 TUI plugin
+> API (the `app` slot, plugin storage, keymap layers, and the V2 event stream). Everything below the
+> install instructions — the protocol, the privacy model, the economics — is unchanged.
+
 You watch your terminal while the agent works anyway. ADtention adds one quiet sponsor
 line to the bottom of OpenCode that earns you credit while you code — and shows your
 running balance right next to it.
@@ -13,7 +19,7 @@ sponsored  Alchemy: APIs for every chain  →  /sponsor to learn more           
 One line. No popups. No signup to earn. And **nothing about your code ever leaves your
 machine**. The rest of this README shows you exactly how, in a way you can verify yourself.
 
-> **OpenCode terminal (CLI) only.** The sponsor line lives in the TUI footer, so this is
+> **OpenCode terminal (CLI) only.** The sponsor line lives in the TUI, so this is
 > for the `opencode` terminal app — not the OpenCode desktop app or editor extensions,
 > which don't have that surface.
 
@@ -32,12 +38,12 @@ The **only** thing that ever goes to the server is that one word, plus a random 
 (a pseudonym, not tied to any personal data), so it can pick a relevant sponsor and credit
 your balance.
 
-| Leaves your machine | Never leaves your machine |
-|---|---|
-| One bucket word (e.g. `web3`) | Your code or file contents |
-| A random install id | Your prompts or the agent's replies |
-| | File names, paths, or repo names |
-| | Anything identifying you or your work |
+| Leaves your machine           | Never leaves your machine             |
+| ----------------------------- | ------------------------------------- |
+| One bucket word (e.g. `web3`) | Your code or file contents            |
+| A random install id           | Your prompts or the agent's replies   |
+|                               | File names, paths, or repo names      |
+|                               | Anything identifying you or your work |
 
 **No account, email, or login to install or earn.** The install id is a random string
 created locally the first time the plugin runs. Cashing out, once it's available, will mean
@@ -45,7 +51,7 @@ creating an account with a payout method — but earning never requires one.
 
 **Don't take our word for it.** The entire plugin is one short file
 ([`src/tui.tsx`](src/tui.tsx)) that you can read in a few minutes. The line itself just
-renders a cached value — it makes *no* network call. The only outbound request happens once
+renders a cached value — it makes _no_ network call. The only outbound request happens once
 per prompt, and you can read exactly what it sends: a one-time `register`, then a `serve`.
 
 ---
@@ -56,31 +62,38 @@ per prompt, and you can read exactly what it sends: a one-time `register`, then 
   the TUI, on every screen.
 - **Passive credit while you work**: the sponsor line earns a small amount each time it's
   served on a real prompt. Money trickles in for doing what you were already doing.
-- **Zero friction**: one command to install, works instantly, no signup.
+- **Zero friction**: one config entry to install, works instantly, no signup.
 - **Privacy by architecture, not by promise**: the design makes leaking your code
   impossible, not just against the rules.
-- **A clean exit**: remove one line from your config and it's gone, no trace.
+- **A clean exit**: remove one entry from your config and it's gone, no trace.
 
 ---
 
 ## Install
 
-```
-opencode plugin @adtention/opencode
-```
+OpenCode 2 loads terminal plugins from `plugins` in your global
+`~/.config/opencode/cli.json` (or `$XDG_CONFIG_HOME/opencode/cli.json`).
 
-Or add it to your `tui.json` directly:
-
-```json
+```jsonc
 {
-  "$schema": "https://opencode.ai/tui.json",
-  "plugin": ["@adtention/opencode"]
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "plugins": ["@adtention/opencode"],
+}
+```
+
+Using this fork from source instead:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "plugins": ["file:///home/marco/MasterT/adtention-opencode"],
 }
 ```
 
 Relaunch OpenCode and the line appears at the bottom of the terminal.
 
-Want the bleeding edge straight from source? `opencode plugin adtention-ai/opencode`.
+> Already disabled a plugin with a `-adtention*` entry in `cli.json`? Remove that entry —
+> it disables the plugin in every form, including this fork.
 
 ---
 
@@ -105,12 +118,22 @@ ADtention account (Google sign-in):
    npx @adtention/opencode key
    ```
 
+   From a source checkout, the same command runs as:
+
+   ```
+   node /home/marco/MasterT/adtention-opencode/src/cli.mjs key
+   ```
+
 2. Paste the `publisher_id` and `secret` it prints at
    [app.adtention.ai/earn/link](https://app.adtention.ai/earn/link), then sign in with Google.
 
 Your balance is then tied to your account and withdrawable past the threshold. Linking is
 one-time (an install can't be moved to another account afterward), so a secret seen after
 linking can't be used to steal it.
+
+Upgrading from the V1 plugin on the same machine? The plugin adopts your existing V1
+identity (and cached sponsor/balance) on first run, so your install and earnings stay the
+same.
 
 It's not a salary. It's beer money that shows up for work you were doing regardless.
 
@@ -120,16 +143,18 @@ It's not a salary. It's beer money that shows up for work you were doing regardl
 
 Two parts, deliberately kept separate so the terminal is never waiting on a server:
 
-- **The line renders from a local cache.** It makes no network call, so it's always
-  instant and works offline.
+- **The line renders from local storage.** It makes no network call, so it's always
+  instant and works offline. V2 stores it as durable, plugin-scoped JSON under
+  `~/.local/state/opencode/<channel>/tui/plugin.adtention.sponsor.state.json`, shared live
+  with every running TUI instance.
 - **A `serve` runs once per prompt.** When the session starts working, the plugin does the
   local sorting, calls the server once (dwell-gated to 15s) to fetch a fresh sponsor and
   your latest balance, and updates the cache. Sponsor selection happens server-side, so
   that logic stays off your machine entirely.
 
-It registers into OpenCode's persistent `app_bottom` TUI slot — a line shown below the
-active view on every screen. Your publisher identity is stored in OpenCode's local state
-and reused across sessions.
+It registers into OpenCode's `app` TUI slot — the row below the active route, shown on
+every screen — through `context.ui.slot({ append: "app", ... })`. Your publisher identity
+is stored in OpenCode's plugin storage and reused across sessions.
 
 ---
 
@@ -143,27 +168,31 @@ browser. It only ever opens `http(s)` links.
 
 ## Configuration
 
-Pass options in `tui.json` if you need to:
+Pass options in the object form in `cli.json` if you need to:
 
-```json
+```jsonc
 {
-  "plugin": [
-    ["@adtention/opencode", { "api": "https://api.adtention.ai" }]
-  ]
+  "plugins": [
+    {
+      "package": "@adtention/opencode",
+      "options": { "api": "https://api.adtention.ai" },
+    },
+  ],
 }
 ```
 
 - `api` — base URL of the ADtention server (default `https://api.adtention.ai`). You can
   also set `ADTENTION_API`.
+- `demo` — show a sample sponsor line without a server (useful for screenshots).
 - `ADTENTION_REF` — a referral code applied to your first registration.
 
 ---
 
 ## Uninstall
 
-Remove the `@adtention/opencode` entry from your `tui.json` (global:
-`~/.config/opencode/tui.json`, or your project's `.opencode/tui.json`) and relaunch. To
-also clear the cached identity and balance, delete `kv.json` from OpenCode's state dir.
+Remove the `@adtention/opencode` (or `file://...`) entry from your `cli.json` and relaunch.
+To also clear the cached identity, sponsor, and balance, delete
+`plugin.adtention.sponsor.state.json` from `~/.local/state/opencode/<channel>/tui/`.
 That's it — no account to close, no residue.
 
 ---
@@ -171,7 +200,7 @@ That's it — no account to close, no residue.
 ## FAQ
 
 **Is this for the OpenCode desktop app or editor extension?**
-No — the terminal (`opencode` CLI) only. The line lives in the TUI footer, which the
+No — the terminal (`opencode` CLI) only. The line lives in the TUI, which the
 desktop app and editor surfaces don't have.
 
 **Is it going to slow down my terminal?**
@@ -192,11 +221,16 @@ Because the categorization runs locally and only emits one of six bucket words. 
 is one readable file ([`src/tui.tsx`](src/tui.tsx)) — the line itself makes no network
 call at all.
 
+**Does this work on OpenCode 1?**
+No. This fork is the OpenCode 2 port; use [adtention-ai/opencode](https://github.com/adtention-ai/opencode)
+for V1. The two store identity in different places, and the plugin migrates the V1 identity
+when it finds one.
+
 **What if I hate it?**
-Remove one line from your `tui.json` and relaunch. No trace left behind.
+Remove one line from your `cli.json` and relaunch. No trace left behind.
 
 ---
 
 Built by [ADtention](https://adtention.ai). Same network as the
-[Claude Code status line](https://github.com/adtention-ai/claude). MIT — see
-[LICENSE](LICENSE).
+[Claude Code status line](https://github.com/adtention-ai/claude). OpenCode 2 port by
+[Bugg4](https://github.com/Bugg4/adtention-opencode). MIT — see [LICENSE](LICENSE).

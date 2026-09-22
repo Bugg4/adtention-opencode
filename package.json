@@ -1,7 +1,7 @@
 {
   "name": "@adtention/opencode",
-  "version": "0.2.0",
-  "description": "ADtention sponsor unit for OpenCode — one quiet sponsor line in the TUI footer that pays you while your agent works.",
+  "version": "0.3.0",
+  "description": "ADtention sponsor unit for OpenCode 2 — one quiet sponsor line in the TUI footer that pays you while your agent works.",
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -9,13 +9,13 @@
     "build": "tsc --noEmit"
   },
   "license": "MIT",
-  "homepage": "https://adtention.ai",
+  "homepage": "https://github.com/Bugg4/adtention-opencode",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/adtention-ai/opencode.git"
+    "url": "git+https://github.com/Bugg4/adtention-opencode.git"
   },
   "bugs": {
-    "url": "https://github.com/adtention-ai/opencode/issues"
+    "url": "https://github.com/Bugg4/adtention-opencode/issues"
   },
   "publishConfig": {
     "access": "public"
@@ -27,15 +27,16 @@
     "adtention-opencode": "./src/cli.mjs"
   },
   "engines": {
-    "opencode": ">=1.17.0"
+    "opencode": ">=2.0.0"
   },
   "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.17.0",
-    "@opentui/solid": ">=0.3.4",
-    "solid-js": ">=1.8.0"
+    "@opencode/plugin": ">=2.0.8",
+    "@opentui/solid": ">=0.5.10",
+    "solid-js": ">=1.9.0"
   },
   "files": [
-    "src"
+    "src",
+    "tui.tsx"
   ],
   "keywords": [
     "opencode",
@@ -44,8 +45,8 @@
     "sponsor"
   ],
   "devDependencies": {
-    "@opencode-ai/plugin": "^1.17.12",
-    "@opentui/solid": "^0.4.2",
+    "@opencode/plugin": "^2.0.13",
+    "@opentui/solid": "^0.5.12",
     "@types/node": "^24.13.2",
     "solid-js": "1.9.12",
     "typescript": "^6.0.3"

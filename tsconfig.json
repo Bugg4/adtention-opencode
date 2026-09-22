@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["src", ".opencode/plugins"]
+  "include": ["src", "tui.tsx", ".opencode/plugins"]
 }
