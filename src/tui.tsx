@@ -18,9 +18,10 @@
 // publisher (at register) and on each impression (at serve) for traffic attribution.
 //
 // Economics: a serve is billable, so we only serve on a REAL prompt — the
-// `session.status` -> "busy" transition — at most once every 15s. An idle
-// terminal earns nothing. Category is classified LOCALLY from the project
-// folder; only the resulting tag (web3/web/devops/data/systems/general) is sent.
+// `session.execution.started` transition (the durable event OpenCode 2 emits
+// when an agent turn begins) — at most once every 15s. An idle terminal earns
+// nothing. Category is classified LOCALLY from the project folder; only the
+// resulting tag (web3/web/devops/data/systems/general) is sent.
 //
 // Display is decoupled from billing: the line always renders from the plugin's
 // durable storage (instant, offline-safe); a serve only updates that cache.
@@ -376,22 +377,45 @@ export default Plugin.define({
         () => {},
       );
 
-    // 2. Serve on a real prompt: the session goes "busy". Ignore subagents and
-    //    rapid repeats (the dwell gate inside serveImpression also guards this).
+    // 2. Serve on a real prompt. OpenCode 2 marks an agent turn with the durable
+    //    `session.execution.*` events (the same ones the host's own session
+    //    status is derived from); the older `session.status` busy/idle pair is
+    //    kept as a fallback for hosts that still emit it. Subagents carry their
+    //    parent's prompt, so only root sessions serve; `active` drops duplicate
+    //    signals for the same turn and the dwell gate inside serveImpression
+    //    guards rapid repeats.
     const active = new Set<string>();
+    function promptStarted(sessionID: string) {
+      const session = context.data.session.get(sessionID);
+      if (session?.parentID) return; // subagent work belongs to the parent's prompt
+      if (active.has(sessionID)) return;
+      active.add(sessionID);
+      void serveImpression();
+    }
+    function promptEnded(sessionID: string) {
+      active.delete(sessionID);
+    }
     const offStatus = context.data.on("session.status", (event) => {
-      const sessionID = event.data.sessionID;
       const type = event.data.status.type;
-      if (type === "busy") {
-        const session = context.data.session.get(sessionID);
-        if (session?.parentID) return; // subagent work belongs to the parent's prompt
-        if (active.has(sessionID)) return;
-        active.add(sessionID);
-        void serveImpression();
-      } else if (type === "idle") {
-        active.delete(sessionID);
-      }
+      if (type === "busy") promptStarted(event.data.sessionID);
+      else if (type === "idle") promptEnded(event.data.sessionID);
     });
+    const offExecutionStarted = context.data.on(
+      "session.execution.started",
+      (event) => promptStarted(event.data.sessionID),
+    );
+    const offExecutionSucceeded = context.data.on(
+      "session.execution.succeeded",
+      (event) => promptEnded(event.data.sessionID),
+    );
+    const offExecutionFailed = context.data.on(
+      "session.execution.failed",
+      (event) => promptEnded(event.data.sessionID),
+    );
+    const offExecutionInterrupted = context.data.on(
+      "session.execution.interrupted",
+      (event) => promptEnded(event.data.sessionID),
+    );
 
     // 3. `/sponsor` command + palette entry, and the unit pinned to the bottom
     //    of every screen. The keymap layer is owned by the slot component, so it
@@ -421,6 +445,10 @@ export default Plugin.define({
 
     return () => {
       offStatus();
+      offExecutionStarted();
+      offExecutionSucceeded();
+      offExecutionFailed();
+      offExecutionInterrupted();
       unregisterSlot();
     };
   },
